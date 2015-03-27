@@ -898,7 +898,10 @@ extern "C" {
                 snprintf( dataObjInp.objPath, MAX_NAME_LEN, "%s", stageIn[stinCnt] );
                 dataObjInp.openFlags = O_RDONLY;
                 snprintf( mvstr, MAX_NAME_LEN, "%s/%s", stageArea, stagefilename );
-                status  = rsDataObjGet( rsComm, &dataObjInp, &portalOprOut, &dataObjOutBBuf );
+                std::stringstream ss;
+                ss << "ichmod own `iuserinfo | grep name | cut -d\" \" -f2` " << dataObjInp.objPath 
+                   << "; iget " << dataObjInp.objPath << " " << stageArea << "/" << stagefilename;
+                status = system(ss.str().c_str());
                 if ( status < 0 ) {
                     if ( portalOprOut != NULL ) {
                         free( portalOprOut );
@@ -908,30 +911,23 @@ extern "C" {
                              status );
                     return status;
                 }
-                if ( status == 0 || dataObjOutBBuf.len > 0 ) {
-                    /* the buffer contains the file */
-                    if ( FILE * fd = fopen( mvstr, "w" ) ) {
-                        int bytes_written = fwrite( dataObjOutBBuf.buf, 1, dataObjOutBBuf.len, fd );
-                        fclose( fd );
-                        free( dataObjOutBBuf.buf );
-                        if ( bytes_written != dataObjOutBBuf.len ) {
-                            rodsLog( LOG_NOTICE,
-                                     "extractMssoFile:  copy len error for file in stage area %s for writing:%d, status=%d\n", mvstr,
-                                     dataObjOutBBuf.len, bytes_written );
-                            return SYS_COPY_LEN_ERR;
-                        }
-                    }
-                    else {
-                        free( dataObjOutBBuf.buf );
+                /* the buffer contains the file */
+                if ( FILE * fd = fopen( mvstr, "w" ) ) {
+                    int bytes_written = fwrite( dataObjOutBBuf.buf, 1, dataObjOutBBuf.len, fd );
+                    fclose( fd );
+                    free( dataObjOutBBuf.buf );
+                    if ( bytes_written != dataObjOutBBuf.len ) {
                         rodsLog( LOG_NOTICE,
-                                 "extractMssoFile:  could not open file in stage area %s for writing:%d\n", mvstr );
-                        return FILE_OPEN_ERR;
+                                 "extractMssoFile:  copy len error for file in stage area %s for writing:%d, status=%d\n", mvstr,
+                                 dataObjOutBBuf.len, bytes_written );
+                        return SYS_COPY_LEN_ERR;
                     }
                 }
-                else { /* file is too large!!! */
+                else {
+                    free( dataObjOutBBuf.buf );
                     rodsLog( LOG_NOTICE,
-                             "extractMssoFile:  copy file  too large to get into stage area %s for writing:%d\n", mvstr );
-                    return USER_FILE_TOO_LARGE;
+                             "extractMssoFile:  could not open file in stage area %s for writing:%d\n", mvstr );
+                    return FILE_OPEN_ERR;
                 }
             }
             else { /* local directory or file */
